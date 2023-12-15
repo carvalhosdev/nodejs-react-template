@@ -3,14 +3,14 @@ const {check, validationResult} = require("express-validator");
 const {prisma} =require("../db");
 const bcrypt = require("bcrypt");
 const JWT = require("jsonwebtoken");
+const {tokenString} = require("../utils/helper")
 
 //signup- Account
-router.post("/signup",
-[
+router.post("/signup",[
         check("email", "Please, fill a valid e-mail").isEmail(),
         check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
         check("username", "Please, fill the username with min 6 characters").isLength({min:6}),
-    ], async (req, res) => {
+], async (req, res) => {
 
     const errors = validationResult(req)
     if(!errors.isEmpty()){
@@ -39,7 +39,8 @@ router.post("/signup",
         data: {
             email,
             username,
-            password: hashPassword
+            password: hashPassword,
+            activation_token: tokenString()
         },
         select: {
             id:true,
@@ -97,6 +98,43 @@ router.post("/login", async (req,res) => {
 
 })
 
+
+//active account
+router.get("/activate", async  (req, res) => {
+
+    const {activation_token} = req.query;
+    if(!activation_token){
+        return res.status(403).json({
+            errors: [
+                { msg: "Unauthorized"}
+            ]
+        })
+    }
+
+    const user = await prisma.user.findFirst({
+        where: {
+            activation_token : activation_token
+        }
+    });
+
+    if(!user){
+        return res.status(403).json({
+            errors: [
+                { msg: "Unauthorized"}
+            ]
+        })
+    }
+
+    await prisma.user.update({
+        where: {
+            id: user.id
+        },
+        data: {
+            is_activated : new Date()
+        }
+    })
+    return res.json(user);
+})
 
 router.get("/me", async (req, res) => {
     //get from headers
