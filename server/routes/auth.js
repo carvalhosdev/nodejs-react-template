@@ -1,9 +1,10 @@
 const router = require("express").Router();
-const {check, validationResult} = require("express-validator");
+const {check, query, validationResult} = require("express-validator");
 const {prisma} =require("../db");
 const bcrypt = require("bcrypt");
 const JWT = require("jsonwebtoken");
-const {tokenString} = require("../utils/helper")
+const {tokenString, dateExpire, verifyExpiredDate} = require("../utils/helper")
+const {verify} = require("jsonwebtoken");
 
 //signup- Account
 router.post("/signup",[
@@ -40,12 +41,13 @@ router.post("/signup",[
             email,
             username,
             password: hashPassword,
-            activation_token: tokenString()
+            activation_token: tokenString(64)
         },
         select: {
             id:true,
             username:true,
-            email:true
+            email:true,
+
         }
     })
 
@@ -85,6 +87,7 @@ router.post("/login", async (req,res) => {
         id: user.id,
         email: user.email,
         username: user.username
+
     }
     //json webtoken
     const token = await JWT.sign(userPayload,
@@ -100,7 +103,7 @@ router.post("/login", async (req,res) => {
 
 
 //active account
-router.get("/activate", async  (req, res) => {
+router.get("/activate", async (req, res) => {
 
     const {activation_token} = req.query;
     if(!activation_token){
@@ -125,17 +128,128 @@ router.get("/activate", async  (req, res) => {
         })
     }
 
+    if(user.activated_at){
+        return res.status(204).end();
+    }
+
     await prisma.user.update({
         where: {
             id: user.id
         },
         data: {
-            is_activated : new Date()
+            activated_at : new Date()
         }
     })
-    return res.json(user);
+    return res.status(204).end();
+});
+
+//forgot
+router.post("/forgot",[check("email", "Please, fill a valid e-mail").isEmail()], async (req, res) => {
+
+    const errors = validationResult(req)
+    if(!errors.isEmpty()){
+        return res.status(400).json({
+            errors: errors.array()
+        });
+    }
+    const email = req.body.email;
+
+    const user = await prisma.user.findUnique({
+        where: {
+            email
+        }
+    });
+
+    if(!user){
+        return res.status(404).json({
+            errors: [
+                {
+                    msg: "User not registred"
+                }
+            ]
+        })
+    }
+
+    const forgot_token = tokenString(32);
+    const forgot_token_expire = dateExpire();
+
+    await prisma.user.update({
+        where:{
+            id: user.id
+        },
+        data: {
+            forgot_token,
+            forgot_token_expire
+        }
+
+    })
+
+    return res.status(204).end();
 })
 
+//reset
+router.post("/reset",
+    [
+        check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
+        check("repassword", "Please, fill the password with min 6 characters").isLength({min:6}),
+        check("repassword", "Password not match").custom((value, {req}) => value === req.body.password),
+        query("forgot_token", "The reset token not present").not().isEmpty(),
+    ],
+    async (req, res) => {
+    const errors = validationResult(req)
+    if(!errors.isEmpty()){
+        return res.status(400).json({
+            errors: errors.array()
+        });
+    }
+
+    const forgot_token = req.query.forgot_token;
+    const password = req.body.password;
+
+    const user = await prisma.user.findFirst({
+        where: {
+            forgot_token
+        }
+    });
+
+    if(!user){
+        return res.status(401).json({
+            errors: [
+                {
+                    msg: "Unautherized"
+                }
+            ]
+        })
+    }
+
+    if(!verifyExpiredDate(user.forgot_token_expire)){
+        return res.status(401).json({
+            errors: [
+                {
+                    msg: "Sorry, the token is expired"
+                }
+            ]
+        })
+    }
+
+    const hashPassword = await bcrypt.hash(password, 10)
+    await prisma.user.update({
+        where:{
+            id: user.id
+        },
+        data: {
+            forgot_token: null,
+            forgot_token_expire: null,
+            password: hashPassword
+        }
+    });
+
+
+    return res.status(204).end();
+
+})
+
+//me
 router.get("/me", async (req, res) => {
     //get from headers
     const bearerToken = req.headers.authorization;
@@ -158,7 +272,9 @@ router.get("/me", async (req, res) => {
         select: {
             id: true,
             email: true,
-            username: true
+            username: true,
+            activated_at: true,
+            activation_token: true
         }
     });
 

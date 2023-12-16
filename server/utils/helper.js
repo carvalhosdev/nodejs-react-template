@@ -1,6 +1,23 @@
-const tokenString = () => {
-    return stringToHex(generateRandomToken(64));
+const tokenString = (length) => {
+    return stringToHex(generateRandomToken(length));
 }
+
+const dateExpire =  () => {
+    const currentDate = new Date();
+    const expirationDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+    return expirationDate.toISOString();
+}
+
+const verifyExpiredDate = (date) => {
+    const currentDate = new Date();
+    const expirationDate = new Date(date);
+    if (expirationDate < currentDate) {
+       return false;
+    } else {
+       return true;
+    }
+}
+
 
 const generateRandomToken = (length) => {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -25,5 +42,7 @@ const stringToHex = (str) => {
 
 
 module.exports = {
-    tokenString
+    tokenString,
+    dateExpire,
+    verifyExpiredDate
 }
