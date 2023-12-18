@@ -4,16 +4,43 @@ const {prisma} =require("../db");
 const bcrypt = require("bcrypt");
 const JWT = require("jsonwebtoken");
 const {tokenString, dateExpire, verifyExpiredDate} = require("../utils/helper")
-const {verify} = require("jsonwebtoken");
-const smtpSender = require("../services/smtpSender")
-const {response} = require("express");
+//const smtpSender = require("../services/smtpSender")
 
-//signup- Account
-router.post("/signup",[
-        check("email", "Please, fill a valid e-mail").isEmail(),
-        check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
-        check("username", "Please, fill the username with min 6 characters").isLength({min:6}),
-], async (req, res) => {
+
+const requiredToSignUP = [
+    check("email", "Please, fill a valid e-mail").isEmail(),
+    check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
+    check("username", "Please, fill the username with min 6 characters").isLength({min:6})
+];
+
+
+/**
+ * @swagger
+ * /auth/signup:
+ *  post:
+ *      description: Make an user registration
+ *      produces:
+ *          - application/json
+ *      requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                       type: object
+ *                       properties:
+ *                          email:
+ *                              type: string
+ *                          password:
+ *                              type: string
+ *                          username:
+ *                              type: string
+ *      responses:
+ *          200:
+ *              description: Returns JSON Token JWT
+ *          400:
+ *              description: Parameters required not informed
+ */
+router.post("/signup", requiredToSignUP ,async (req, res) => {
     const errors = validationResult(req)
     if(!errors.isEmpty()){
         return res.status(400).json({
@@ -34,7 +61,6 @@ router.post("/signup",[
         });
     }
 
-    //hasing password
     const hashPassword = await bcrypt.hash(password, 10)
 
     const newUser = await prisma.user.create({
@@ -51,14 +77,12 @@ router.post("/signup",[
             activation_token: true
 
         }
-    })
+    });
 
-    //json webtoken
     const token = await JWT.sign(newUser,
         process.env.JSON_WEB_TOKEN_SECRET,
         { expiresIn: 360000})
 
-    //send email
     /*await smtpSender({
         to: email,
         subject: "Welcome to your company",
@@ -78,10 +102,35 @@ router.post("/signup",[
 });
 
 //login
-router.post("/login", [
+const requiredToLogin = [
     check("email", "Please, fill a valid e-mail").isEmail(),
     check("password", "Please, fill the password").not().isEmpty()
-],async (req,res) => {
+]
+/**
+ * @swagger
+ * /auth/login:
+ *  post:
+ *      description: Make an user login
+ *      produces:
+ *          - application/json
+ *      requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                       type: object
+ *                       properties:
+ *                          email:
+ *                              type: string
+ *                          password:
+ *                              type: string
+ *      responses:
+ *          200:
+ *              description: Returns JSON Token JWT
+ *          400:
+ *              description: Parameters required not informed
+ */
+router.post("/login",requiredToLogin,async (req,res) => {
     const errors = validationResult(req)
     if(!errors.isEmpty()){
         return res.status(400).json({
@@ -113,7 +162,7 @@ router.post("/login", [
         username: user.username
 
     }
-    //json webtoken
+
     const token = await JWT.sign(userPayload,
         process.env.JSON_WEB_TOKEN_SECRET,
         { expiresIn: 360000})
@@ -122,13 +171,29 @@ router.post("/login", [
         user: userPayload,
         token: token
     });
-
 })
 
-
-//active account
+/**
+ * @swagger
+ * /auth/activate:
+ *  get:
+ *      description: Make the account be activated
+ *      produces:
+ *          - application/json
+ *      parameters:
+ *        - name: activation_token
+ *          description: "Token provided by email"
+ *          in: query
+ *          required: true
+ *          schema:
+ *           type: string
+ *      responses:
+ *          200:
+ *              description: Returns JSON Token JWT
+ *          400:
+ *              description: Parameters required not informed
+ */
 router.get("/activate", async (req, res) => {
-
     const {activation_token} = req.query;
     if(!activation_token){
         return res.status(403).json({
@@ -167,9 +232,37 @@ router.get("/activate", async (req, res) => {
     return res.status(204).end();
 });
 
-//forgot
-router.post("/forgot",[check("email", "Please, fill a valid e-mail").isEmail()], async (req, res) => {
+const requiredToForgot = [
+    check("email", "Please, fill a valid e-mail").isEmail()
+]
+/**
+ * FORGOT ENDPOINT - FORGOT ACCOUNT SENDING A TOKEN TO EMAIL
+ * @param email
+ */
 
+/**
+ * @swagger
+ * /auth/forgot:
+ *  post:
+ *      description: If the user forgot his password
+ *      produces:
+ *          - application/json
+ *      requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                       type: object
+ *                       properties:
+ *                          email:
+ *                              type: string
+ *      responses:
+ *          204:
+ *              description: Nothing, just updated
+ *          400:
+ *              description: Parameters required not informed
+ */
+router.post("/forgot", requiredToForgot, async (req, res) => {
     const errors = validationResult(req)
     if(!errors.isEmpty()){
         return res.status(400).json({
@@ -188,7 +281,7 @@ router.post("/forgot",[check("email", "Please, fill a valid e-mail").isEmail()],
         return res.status(404).json({
             errors: [
                 {
-                    msg: "User not registred"
+                    msg: "User not registered"
                 }
             ]
         })
@@ -208,28 +301,63 @@ router.post("/forgot",[check("email", "Please, fill a valid e-mail").isEmail()],
 
     })
 
+    /*await smtpSender({
+        to: email,
+        subject: "You forgot the password",
+        template: "forgot",
+        context: {
+            company: "Your Company",
+            username: user.username,
+            //replace react ui
+            activation: `another url to return to web site`
+        }
+    });*/
+
     return res.status(204).end();
 })
 
-//reset
-router.post("/reset",
-    [
-        check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
-        check("repassword", "Please, fill the password with min 6 characters").isLength({min:6}),
-        check("repassword", "Password not match").custom((value, {req}) => value === req.body.password),
-        query("forgot_token", "The reset token not present").not().isEmpty(),
-    ],
-    async (req, res) => {
+
+const requiredToReset = [
+    check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
+    check("repassword", "Please, fill the password with min 6 characters").isLength({min:6}),
+    check("repassword", "Password not match").custom((value, {req}) => value === req.body.password),
+    query("forgot_token", "The reset token not present").not().isEmpty()
+]
+
+/**
+ * @swagger
+ * /auth/reset:
+ *  post:
+ *      description: "When user reset his password"
+ *      produces:
+ *          - application/json
+ *      parameters:
+ *          - name: reset_token
+ *      in: query
+ *      required: true
+ *      schema:
+ *          type: string
+ *      requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                       type: object
+ *                       properties:
+ *                          password:
+ *                              type: string
+ *                          repassword:
+ *                              type: string
+ */
+router.post("/reset", requiredToReset, async (req, res) => {
     const errors = validationResult(req)
     if(!errors.isEmpty()){
         return res.status(400).json({
             errors: errors.array()
         });
     }
-
     const forgot_token = req.query.forgot_token;
     const password = req.body.password;
-
     const user = await prisma.user.findFirst({
         where: {
             forgot_token
@@ -250,7 +378,7 @@ router.post("/reset",
         return res.status(401).json({
             errors: [
                 {
-                    msg: "Sorry, the token is expired"
+                    msg: "Sorry, this token is expired"
                 }
             ]
         })
@@ -273,9 +401,20 @@ router.post("/reset",
 
 })
 
-//me
+/**
+ * @swagger
+ * /auth/me:
+ *  get:
+ *      description: user token information
+ *      security:
+ *      - bearerAuth: []
+ *      responses:
+ *          200:
+ *              description: User info
+ *          403:
+ *              description: Invalid parameters
+ */
 router.get("/me", async (req, res) => {
-    //get from headers
     const bearerToken = req.headers.authorization;
     if(!bearerToken) return res.status(401).send(null)
     const jwt = bearerToken.split("Bearer ")[1];
