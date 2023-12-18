@@ -6,6 +6,7 @@ const JWT = require("jsonwebtoken");
 const {tokenString, dateExpire, verifyExpiredDate} = require("../utils/helper")
 const {verify} = require("jsonwebtoken");
 const smtpSender = require("../services/smtpSender")
+const {response} = require("express");
 
 //signup- Account
 router.post("/signup",[
@@ -47,6 +48,7 @@ router.post("/signup",[
             id:true,
             username:true,
             email:true,
+            activation_token: true
 
         }
     })
@@ -56,12 +58,18 @@ router.post("/signup",[
         process.env.JSON_WEB_TOKEN_SECRET,
         { expiresIn: 360000})
 
-    //todo - body template
-    await smtpSender({
+    //send email
+    /*await smtpSender({
         to: email,
-        subject: "Welcome to Bion",
-        body: "<html><head></head><body><p><b>Hello</b>,</p>This is my first transactional email sent from Brevo.</p></body></html>"
-    });
+        subject: "Welcome to your company",
+        template: "welcome",
+        context: {
+            company: "Your Company",
+            username: username,
+            //replace react ui
+            activation: `https://localhost:8080/auth/activate?activation_token=${newUser.activation_token}`
+        }
+    });*/
 
     return res.json({
         user: newUser,
@@ -70,7 +78,16 @@ router.post("/signup",[
 });
 
 //login
-router.post("/login", async (req,res) => {
+router.post("/login", [
+    check("email", "Please, fill a valid e-mail").isEmail(),
+    check("password", "Please, fill the password").not().isEmpty()
+],async (req,res) => {
+    const errors = validationResult(req)
+    if(!errors.isEmpty()){
+        return res.status(400).json({
+            errors: errors.array()
+        });
+    }
     const {email, password} =req.body;
 
     const user = await prisma.user.findUnique({

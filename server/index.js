@@ -19,6 +19,6 @@ app.use(cors());
 app.use("", require("./routes/home"));
 app.use("/auth", require("./routes/auth"));
 
-sslServer.listen(8080, () => {
+sslServer.listen(3000, () => {
     console.log("SSL listen on port 8080");
 })

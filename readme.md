@@ -2,9 +2,10 @@
 
 Project is on development, updates soon:
  
-![](https://geps.dev/progress/75)
+![](https://geps.dev/progress/98)
 
 ## SERVER
+
 
 ### Database File Configuration
 npx prisma init --datasource-provider sqlite or postgresql
@@ -20,7 +21,9 @@ npx prisma generate
 
 npx prisma db push
 
-npx prisma studio
+
+*npx prisma studio - to access the prisma studio*
+
 
 ### SSL configuration
 *If the cert not work, use this inside of cert folder:*

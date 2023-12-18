@@ -1,11 +1,13 @@
 const {createTransport} = require("nodemailer")
-
+const hbs = require("nodemailer-express-handlebars")
+const path = require("path")
 
 module.exports = async(opt) => {
 
     if(!opt){
-        //todo
+        throw new Error("Opt parameter is missing")
     }
+    const {to, subject, html, template, context} = opt;
 
     const transporter = createTransport({
         host: process.env.SMTP_HOST,
@@ -16,13 +18,37 @@ module.exports = async(opt) => {
         },
     });
 
-    const mailOptions = {
+    let mailOptions = {
         from: process.env.SMTP_USER,
-        to: opt.to,
-        subject: opt.subject,
-        html: opt.body //todo
+        to: to,
+        subject: subject,
+
     };
 
-    return await transporter.sendMail(mailOptions);
+    //template
+    const handlebarOptions = {
+        viewEngine: {
+            partialsDir: path.resolve(path.join(__dirname, 'email-templates')),
+            defaultLayout: false
+        },
+
+
+        viewPath: path.resolve(path.join(__dirname,'email-templates'))
+    }
+
+    transporter.use('compile', hbs(handlebarOptions))
+
+    if(html){
+        mailOptions.html = html;
+    }else{
+        mailOptions.template = template;
+        mailOptions.context = context;
+    }
+
+    try{
+        return await transporter.sendMail(mailOptions);
+    }catch (err){
+        return err;
+    }
 }
 
