@@ -5,6 +5,7 @@ const bcrypt = require("bcrypt");
 const JWT = require("jsonwebtoken");
 const {tokenString, dateExpire, verifyExpiredDate} = require("../utils/helper")
 const {verify} = require("jsonwebtoken");
+const smtpSender = require("../services/smtpSender")
 
 //signup- Account
 router.post("/signup",[
@@ -12,7 +13,6 @@ router.post("/signup",[
         check("password", "Please, fill the password with min 6 characters").isLength({min:6}),
         check("username", "Please, fill the username with min 6 characters").isLength({min:6}),
 ], async (req, res) => {
-
     const errors = validationResult(req)
     if(!errors.isEmpty()){
         return res.status(400).json({
@@ -55,6 +55,13 @@ router.post("/signup",[
     const token = await JWT.sign(newUser,
         process.env.JSON_WEB_TOKEN_SECRET,
         { expiresIn: 360000})
+
+    //todo - body template
+    await smtpSender({
+        to: email,
+        subject: "Welcome to Bion",
+        body: "<html><head></head><body><p><b>Hello</b>,</p>This is my first transactional email sent from Brevo.</p></body></html>"
+    });
 
     return res.json({
         user: newUser,
