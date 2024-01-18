@@ -1,10 +1,18 @@
+import {Outlet} from 'react-router-dom';
+import useAuth from "./hooks/useAuth";
+import {useEffect} from "react";
 function App() {
 
-  return (
-      <div>
-          <p className="text-rose-300">Hello with Tailwindcss</p>
-      </div>
-  )
+    const {fetchUser} = useAuth()
+    useEffect(() => {
+        fetchUser()
+    }, []);
+  
+    return (
+        <div>
+          <Outlet />
+        </div>
+    )
 }
 
 export default App
